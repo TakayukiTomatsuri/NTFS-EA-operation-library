@@ -26,6 +26,17 @@ typedef NTSTATUS(__stdcall* pNtSetEaFile)(
 	ULONG            Length
 	);
 
+ULONG calcEaEntryLength(
+	IN  UCHAR   EaNameLength,
+	IN  USHORT  EaValueLength)
+{
+	ULONG eaEntryLength = sizeof(ULONG) + sizeof(UCHAR) * 2 + sizeof(USHORT) + (EaNameLength + 1) + (EaValueLength + 1);
+	//4bytes align. 
+	eaEntryLength = eaEntryLength + (4 - (eaEntryLength % 4));
+	/*eaEntryLength = eaEntryLength + (eaEntryLength % 4);*/
+	return eaEntryLength;
+}
+
 FILE_FULL_EA_INFORMATION* makeEaEntry(
 	IN  ULONG   NextEntryOffset,
 	IN  UCHAR   Flags,
@@ -38,9 +49,9 @@ FILE_FULL_EA_INFORMATION* makeEaEntry(
 )
 {
 	FILE_FULL_EA_INFORMATION* eaEntryBuffer = NULL;
-	ULONG eaEntryLength = sizeof(ULONG) + sizeof(UCHAR) * 2 + sizeof(USHORT) + (EaNameLength + 1) + (EaValueLength + 1);
+	ULONG eaEntryLength = calcEaEntryLength(EaNameLength, EaValueLength);
 	//4bytes align. 
-	eaEntryLength = eaEntryLength + (eaEntryLength % 4);
+	/*eaEntryLength = eaEntryLength + (eaEntryLength % 4);*/
 
 	eaEntryBuffer = (FILE_FULL_EA_INFORMATION*)malloc(eaEntryLength);
 	if (eaEntryBuffer == NULL) return NULL;
@@ -59,6 +70,26 @@ FILE_FULL_EA_INFORMATION* makeEaEntry(
 
 	*EaEntryLength = eaEntryLength;
 	return eaEntryBuffer;
+}
+
+PVOID addEaEntryAtTopOfEaBuffer(
+	IN  FILE_FULL_EA_INFORMATION * EaEntry,
+	IN  PVOID EaBuffer,
+	IN  ULONG EaLength,
+	OUT ULONG *ReturnedEaLength
+){
+	ULONG eaEntryLength = calcEaEntryLength(EaEntry->EaNameLength, EaEntry->EaValueLength);
+	char* concatenatedEaBuffer = (char*)malloc(eaEntryLength + EaLength);
+	memset(concatenatedEaBuffer, 0, eaEntryLength + EaLength);
+
+	memcpy(concatenatedEaBuffer, EaEntry, eaEntryLength);
+	memcpy(concatenatedEaBuffer + eaEntryLength, EaBuffer, EaLength);
+
+	// change firest EA entry's NextEntryOffset.
+	((FILE_FULL_EA_INFORMATION*)concatenatedEaBuffer)->NextEntryOffset = eaEntryLength;
+
+	*ReturnedEaLength = eaEntryLength + EaLength;
+	return concatenatedEaBuffer;
 }
 
 LPWSTR getFilePathWithCurrentDirectory( IN LPWSTR FileName) {
@@ -131,20 +162,84 @@ NTSTATUS writeSingleEaEntry() {
 	return status;
 }
 
+#include<stdio.h>
+
+NTSTATUS writeMultipleEaEntry() {
+	//HANDLE victimeFile = CreateFileW(L"hoge");
+	LPWSTR victimFilePath = getFilePathWithCurrentDirectory((LPWSTR)L"victim.txt");
+	HANDLE hVictimFile = CreateFile(
+		victimFilePath
+		, GENERIC_WRITE
+		, 0
+		, NULL
+		, CREATE_ALWAYS
+		, FILE_ATTRIBUTE_NORMAL
+		, NULL
+	);
+
+
+	DWORD dwWriteSize = 0;
+	WriteFile(hVictimFile, L"helloworld", sizeof(L"helloworld"), &dwWriteSize, NULL);
+
+
+
+
+	ULONG eaLength_1 = -1;
+	char name_1[] = "e1aa3";
+	char val_1[] = "v1";
+	FILE_FULL_EA_INFORMATION *eaBuffer_1 = makeEaEntry(
+		0,
+		0,
+		strlen(name_1),
+		strlen(val_1),
+		name_1,
+		val_1,
+		&eaLength_1
+	);
+
+	ULONG eaLength_2 = -1;
+	char name_2[] = "e2";
+	char val_2[] = "v2";
+	FILE_FULL_EA_INFORMATION *eaBuffer_2 = makeEaEntry(
+		0,
+		0,
+		strlen(name_2),
+		strlen(val_2),
+		name_2,
+		val_2,
+		&eaLength_2
+	);
+
+	//ULONG allEaLength = -1;
+	//PVOID allEaBuffer = addEaEntryAtTopOfEaBuffer(eaBuffer_1, eaBuffer_2, calcEaEntryLength(eaBuffer_2->EaNameLength, eaBuffer_2->EaValueLength), &allEaLength);
+	//
+
+	eaBuffer_1->NextEntryOffset = eaLength_1;
+	ULONG allEaLength = eaLength_1 + eaLength_2;
+	PVOID allEaBuffer = (PVOID)malloc(allEaLength);
+	memset(allEaBuffer, 0, allEaLength);
+	memcpy(allEaBuffer, eaBuffer_1, eaLength_1);
+
+	memcpy((char*)allEaBuffer + eaLength_1, eaBuffer_2, eaLength_2);
+
+
+	////test
+	//(FILE_FULL_EA_INFORMATION *)allEaBuffer
+	////test
+
+	IO_STATUS_BLOCK ioStatusBlock = { 0 };
+	pNtSetEaFile NtSetEaFile = (pNtSetEaFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtSetEaFile");
+	NTSTATUS status = NtSetEaFile(hVictimFile, &ioStatusBlock, allEaBuffer, allEaLength);
+	//NTSTATUS status = NtSetEaFile(hVictimFile, &ioStatusBlock, eaBuffer_1, eaLength_1);
+
+	CloseHandle(hVictimFile);
+	return status;
+}
+
 
 int main()
 {
     std::cout << "Hello World!\n";
-	return writeSingleEaEntry();
+	//return writeSingleEaEntry();
+	return writeMultipleEaEntry();
 }
-
-// プログラムの実行: Ctrl + F5 または [デバッグ] > [デバッグなしで開始] メニュー
-// プログラムのデバッグ: F5 または [デバッグ] > [デバッグの開始] メニュー
-
-// 作業を開始するためのヒント: 
-//    1. ソリューション エクスプローラー ウィンドウを使用してファイルを追加/管理します 
-//   2. チーム エクスプローラー ウィンドウを使用してソース管理に接続します
-//   3. 出力ウィンドウを使用して、ビルド出力とその他のメッセージを表示します
-//   4. エラー一覧ウィンドウを使用してエラーを表示します
-//   5. [プロジェクト] > [新しい項目の追加] と移動して新しいコード ファイルを作成するか、[プロジェクト] > [既存の項目の追加] と移動して既存のコード ファイルをプロジェクトに追加します
-//   6. 後ほどこのプロジェクトを再び開く場合、[ファイル] > [開く] > [プロジェクト] と移動して .sln ファイルを選択します
