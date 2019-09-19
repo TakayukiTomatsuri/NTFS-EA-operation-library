@@ -30,9 +30,10 @@ ULONG calcEaEntryLength(
 	IN  UCHAR   EaNameLength,
 	IN  USHORT  EaValueLength)
 {
-	ULONG eaEntryLength = sizeof(ULONG) + sizeof(UCHAR) * 2 + sizeof(USHORT) + (EaNameLength + 1) + (EaValueLength + 1);
+	ULONG eaEntryLength = sizeof(ULONG) + sizeof(UCHAR) * 2 + sizeof(USHORT) + (EaNameLength + 1) + (EaValueLength + 0);
 	//4bytes align. 
-	eaEntryLength = eaEntryLength + (4 - (eaEntryLength % 4));
+	ULONG alignmentBoundry = sizeof(ULONG);
+	if(eaEntryLength % alignmentBoundry != 0)  eaEntryLength = eaEntryLength + (alignmentBoundry - (eaEntryLength % alignmentBoundry));
 	/*eaEntryLength = eaEntryLength + (eaEntryLength % 4);*/
 	return eaEntryLength;
 }
@@ -42,8 +43,8 @@ FILE_FULL_EA_INFORMATION* makeEaEntry(
 	IN  UCHAR   Flags,
 	IN  UCHAR   EaNameLength,
 	IN  USHORT  EaValueLength,
-	IN  char*   EaName,
-	IN  char*   EaValue,
+	IN  char*   EaName,            // containing terminator 0x00.
+	IN  char*   EaValue,           // EaValue isn't restlicted to Ascii format. So EaValueLength should be contain terminator 0x00 if EaValue is Ascii.
 	//IN CHAR   EaName[1];
 	OUT ULONG*  EaEntryLength
 )
@@ -92,6 +93,53 @@ PVOID addEaEntryAtTopOfEaBuffer(
 	return concatenatedEaBuffer;
 }
 
+
+
+int showAllEaEntriesInEaBuffer(PVOID EaBuffer) {
+	FILE_FULL_EA_INFORMATION* currentEaEntry = (FILE_FULL_EA_INFORMATION*)EaBuffer;
+	ULONG totalOffset = 0;
+	ULONG eaEntryIndex = 0;
+	while (true) {
+		OutputDebugString(L"hogehoge!");
+
+		//char* detailOfEaEntry = (char*)malloc(5000);
+		//sprintf(
+		//	detailOfEaEntry,
+		//	" EaEntry->NextEntryOffset: %d\n EaEntry->Flags: %d\n EaEntry->EaNameLength: %d\n EaEntry->EaValueLength: %d\n EaName: %s\n EaValue: %s\n\n",
+		//	currentEaEntry->NextEntryOffset,
+		//	currentEaEntry->Flags,
+		//	currentEaEntry->EaNameLength,
+		//	currentEaEntry->EaValueLength,
+		//	&currentEaEntry->EaName[0],
+		//	&currentEaEntry->EaName[currentEaEntry->EaNameLength + 1]
+		//);
+
+		//printf(detailOfEaEntry);
+		/*std::cout << detailOfEaEntry;*/
+
+		printf("Index: %d\ntotalOffset: %d\n EaEntry->NextEntryOffset: %d\n EaEntry->Flags: %d\n EaEntry->EaNameLength: %d\n EaEntry->EaValueLength: %d\n EaName: %s\n EaValue: %s\n\n", 
+			    eaEntryIndex,
+				totalOffset,
+				currentEaEntry->NextEntryOffset,
+				currentEaEntry->Flags,
+				currentEaEntry->EaNameLength,
+				currentEaEntry->EaValueLength,
+				&currentEaEntry->EaName[0],
+				&currentEaEntry->EaName[currentEaEntry->EaNameLength + 1]
+);
+
+		// The last entry has 0 in NextEntryOffset.
+		if (currentEaEntry->NextEntryOffset == 0) break;
+
+		totalOffset = totalOffset + currentEaEntry->NextEntryOffset;
+		eaEntryIndex = eaEntryIndex + 1;
+		currentEaEntry = (FILE_FULL_EA_INFORMATION*)((char*)currentEaEntry + currentEaEntry->NextEntryOffset);
+	
+	}
+
+	return 0;
+}
+
 LPWSTR getFilePathWithCurrentDirectory( IN LPWSTR FileName) {
 	WCHAR szModulePath[MAX_PATH];
 
@@ -108,7 +156,7 @@ LPWSTR getFilePathWithCurrentDirectory( IN LPWSTR FileName) {
 	WCHAR filePath[MAX_PATH];
 	memset(filePath, 0, sizeof(WCHAR) * MAX_PATH);
 
-	/*wcscat_s(filePath, "\\\\?\\");*/
+	/*wcscat_s(filePath, "\\??\\");*/
 	wcscat_s(filePath, szModulePath);
 	wcscat_s(filePath, L"\\");
 	wcscat_s(filePath, MAX_PATH, FileName);
@@ -149,7 +197,7 @@ NTSTATUS writeSingleEaEntry() {
 		0,
 		0,
 		strlen(name),
-		strlen(val),
+		strlen(val)+1,
 		name,
 		val,
 		&eaLength
@@ -185,13 +233,13 @@ NTSTATUS writeMultipleEaEntry() {
 
 
 	ULONG eaLength_1 = -1;
-	char name_1[] = "e1aa3";
+	char name_1[] = "e1aaa"; //短いとInconsistentEaなんとかになる？
 	char val_1[] = "v1";
 	FILE_FULL_EA_INFORMATION *eaBuffer_1 = makeEaEntry(
 		0,
 		0,
 		strlen(name_1),
-		strlen(val_1),
+		strlen(val_1)+1,
 		name_1,
 		val_1,
 		&eaLength_1
@@ -204,23 +252,24 @@ NTSTATUS writeMultipleEaEntry() {
 		0,
 		0,
 		strlen(name_2),
-		strlen(val_2),
+		strlen(val_2)+1,
 		name_2,
 		val_2,
 		&eaLength_2
 	);
 
-	//ULONG allEaLength = -1;
-	//PVOID allEaBuffer = addEaEntryAtTopOfEaBuffer(eaBuffer_1, eaBuffer_2, calcEaEntryLength(eaBuffer_2->EaNameLength, eaBuffer_2->EaValueLength), &allEaLength);
-	//
+	ULONG allEaLength = -1;
+	PVOID allEaBuffer = addEaEntryAtTopOfEaBuffer(eaBuffer_1, eaBuffer_2, calcEaEntryLength(eaBuffer_2->EaNameLength, eaBuffer_2->EaValueLength), &allEaLength);
+	
+	showAllEaEntriesInEaBuffer(allEaBuffer);
 
-	eaBuffer_1->NextEntryOffset = eaLength_1;
-	ULONG allEaLength = eaLength_1 + eaLength_2;
-	PVOID allEaBuffer = (PVOID)malloc(allEaLength);
-	memset(allEaBuffer, 0, allEaLength);
-	memcpy(allEaBuffer, eaBuffer_1, eaLength_1);
+	//eaBuffer_1->NextEntryOffset = eaLength_1;
+	//ULONG allEaLength = eaLength_1 + eaLength_2;
+	//PVOID allEaBuffer = (PVOID)malloc(allEaLength);
+	//memset(allEaBuffer, 0, allEaLength);
+	//memcpy(allEaBuffer, eaBuffer_1, eaLength_1);
 
-	memcpy((char*)allEaBuffer + eaLength_1, eaBuffer_2, eaLength_2);
+	//memcpy((char*)allEaBuffer + eaLength_1, eaBuffer_2, eaLength_2);
 
 
 	////test
@@ -237,9 +286,19 @@ NTSTATUS writeMultipleEaEntry() {
 }
 
 
+
+
+
 int main()
 {
     std::cout << "Hello World!\n";
+
+	// write single EA entry.
 	//return writeSingleEaEntry();
-	return writeMultipleEaEntry();
+
+	// write multiple EA entries.
+	NTSTATUS status = writeMultipleEaEntry();
+	return status;
+
+	// 
 }
