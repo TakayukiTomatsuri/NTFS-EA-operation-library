@@ -117,6 +117,11 @@ int showAllEaEntriesInEaBuffer(PVOID EaBuffer) {
 		//printf(detailOfEaEntry);
 		/*std::cout << detailOfEaEntry;*/
 
+		//EaValue isn't restlicted to ascii. In order to print EaValue as ascii, it should be terminated 0x00.
+		PVOID tmpBufForShowAsAscii = malloc(currentEaEntry->EaValueLength +1);
+		memset(tmpBufForShowAsAscii, 0, currentEaEntry->EaValueLength + 1);
+		memcpy(tmpBufForShowAsAscii, &currentEaEntry->EaName[currentEaEntry->EaNameLength + 1], currentEaEntry->EaValueLength);
+
 		printf("Index: %d\ntotalOffset: %d\n EaEntry->NextEntryOffset: %d\n EaEntry->Flags: %d\n EaEntry->EaNameLength: %d\n EaEntry->EaValueLength: %d\n EaName: %s\n EaValue: %s\n\n", 
 			    eaEntryIndex,
 				totalOffset,
@@ -127,6 +132,7 @@ int showAllEaEntriesInEaBuffer(PVOID EaBuffer) {
 				&currentEaEntry->EaName[0],
 				&currentEaEntry->EaName[currentEaEntry->EaNameLength + 1]
 );
+		free(tmpBufForShowAsAscii);
 
 		// The last entry has 0 in NextEntryOffset.
 		if (currentEaEntry->NextEntryOffset == 0) break;
