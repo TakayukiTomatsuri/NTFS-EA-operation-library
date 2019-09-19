@@ -162,7 +162,7 @@ LPWSTR getFilePathWithCurrentDirectory( IN LPWSTR FileName) {
 	WCHAR filePath[MAX_PATH];
 	memset(filePath, 0, sizeof(WCHAR) * MAX_PATH);
 
-	/*wcscat_s(filePath, "\\??\\");*/
+	wcscat_s(filePath, L"\\??\\");
 	wcscat_s(filePath, szModulePath);
 	wcscat_s(filePath, L"\\");
 	wcscat_s(filePath, MAX_PATH, FileName);
@@ -292,6 +292,143 @@ NTSTATUS writeMultipleEaEntry() {
 }
 
 
+//*****************
+// not suitable: https://stackoverflow.com/questions/7486896/need-help-using-ntcreatefile-to-open-by-fileindex
+// suitable!: https://www.sysnative.com/forums/threads/ntcreatefile-example.8592/
+
+//typedef struct _IO_STATUS_BLOCK {
+//	union {
+//		NTSTATUS Status;
+//		PVOID Pointer;
+//	} DUMMYUNIONNAME;
+//
+//	ULONG_PTR Information;
+//} IO_STATUS_BLOCK, * PIO_STATUS_BLOCK;
+
+typedef struct _UNICODE_STRING {
+	USHORT Length;
+	USHORT MaximumLength;
+	PWSTR  Buffer;
+} UNICODE_STRING, * PUNICODE_STRING;
+
+typedef struct _OBJECT_ATTRIBUTES {
+	ULONG           Length;
+	HANDLE          RootDirectory;
+	PUNICODE_STRING ObjectName;
+	ULONG           Attributes;
+	PVOID           SecurityDescriptor;
+	PVOID           SecurityQualityOfService;
+}  OBJECT_ATTRIBUTES, * POBJECT_ATTRIBUTES;
+
+typedef NTSTATUS(__stdcall* _NtCreateFile)(
+	PHANDLE FileHandle,
+	ACCESS_MASK DesiredAccess,
+	POBJECT_ATTRIBUTES ObjectAttributes,
+	PIO_STATUS_BLOCK IoStatusBlock,
+	PLARGE_INTEGER AllocationSize,
+	ULONG FileAttributes,
+	ULONG ShareAccess,
+	ULONG CreateDisposition,
+	ULONG CreateOptions,
+	PVOID EaBuffer,
+	ULONG EaLength
+	);
+
+typedef VOID(__stdcall* _RtlInitUnicodeString)(
+	PUNICODE_STRING DestinationString,
+	PCWSTR SourceString
+	);
+
+#define FILE_CREATE 0x00000002
+#define FILE_NON_DIRECTORY_FILE 0x00000040
+#define OBJ_CASE_INSENSITIVE 0x00000040L
+
+
+//https://processhacker.sourceforge.io/doc/ntioapi_8h.html
+#define 	FILE_OPEN   0x00000001
+#define 	FILE_CREATE   0x00000002
+#define 	FILE_OPEN_IF   0x00000003
+#define 	FILE_OVERWRITE   0x00000004
+#define 	FILE_OVERWRITE_IF   0x00000005
+
+#define InitializeObjectAttributes( i, o, a, r, s ) {    \
+      (i)->Length = sizeof( OBJECT_ATTRIBUTES );         \
+      (i)->RootDirectory = r;                            \
+      (i)->Attributes = a;                               \
+      (i)->ObjectName = o;                               \
+      (i)->SecurityDescriptor = s;                       \
+      (i)->SecurityQualityOfService = NULL;              \
+   }
+
+
+
+NTSTATUS writeMultipleEaEntryWithNtCreateFile() {
+	_NtCreateFile NtCreateFile = (_NtCreateFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtCreateFile");
+	_RtlInitUnicodeString RtlInitUnicodeString = (_RtlInitUnicodeString)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "RtlInitUnicodeString");
+
+	HANDLE hFile;
+	OBJECT_ATTRIBUTES objAttribs = { 0 };
+
+	//std::cout << "Initializing unicode string..." << std::endl;
+	//PCWSTR filePath = L"\\??\\Z:\\NtCreateFileHook.output";
+	PCWSTR filePath = getFilePathWithCurrentDirectory((LPWSTR)L"victim.txt");
+	UNICODE_STRING unicodeString;
+	RtlInitUnicodeString(&unicodeString, filePath);
+
+	//std::cout << "Call to InitializeObjectAttributes for OBJECT_ATTRIBUTES data structure..." << std::endl;
+	InitializeObjectAttributes(&objAttribs, &unicodeString, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+	//std::cout << "Initializing LARGE_INTEGER for allocation size..." << std::endl;
+	const int allocSize = 2048;
+	LARGE_INTEGER largeInteger;
+	largeInteger.QuadPart = allocSize;
+
+	//std::cout << "Calling NtCreateFile..." << std::endl;
+
+	//---- create EA entry list in EaBuffer----
+
+
+	ULONG eaLength_1 = -1;
+	char name_1[] = "e1aaa"; //短いとInconsistentEaなんとかになる？
+	char val_1[] = "v1";
+	FILE_FULL_EA_INFORMATION* eaBuffer_1 = makeEaEntry(
+		0,
+		0,
+		strlen(name_1),
+		strlen(val_1) + 1,
+		name_1,
+		val_1,
+		&eaLength_1
+	);
+
+	ULONG eaLength_2 = -1;
+	char name_2[] = "e2";
+	char val_2[] = "v2";
+	FILE_FULL_EA_INFORMATION* eaBuffer_2 = makeEaEntry(
+		0,
+		0,
+		strlen(name_2),
+		strlen(val_2) + 1,
+		name_2,
+		val_2,
+		&eaLength_2
+	);
+
+	ULONG allEaLength = -1;
+	PVOID allEaBuffer = addEaEntryAtTopOfEaBuffer(eaBuffer_1, eaBuffer_2, calcEaEntryLength(eaBuffer_2->EaNameLength, eaBuffer_2->EaValueLength), &allEaLength);
+
+	showAllEaEntriesInEaBuffer(allEaBuffer);
+	//-------------------
+
+
+	IO_STATUS_BLOCK ioStatusBlock = { 0 };
+	NTSTATUS status = NtCreateFile(&hFile, STANDARD_RIGHTS_ALL, &objAttribs, &ioStatusBlock, &largeInteger,
+		FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, FILE_OPEN_IF, FILE_NON_DIRECTORY_FILE, allEaBuffer, allEaLength);
+	if (hFile != NULL) CloseHandle(hFile);
+
+	return status;
+}
+
 
 
 
@@ -303,7 +440,10 @@ int main()
 	//return writeSingleEaEntry();
 
 	// write multiple EA entries.
-	NTSTATUS status = writeMultipleEaEntry();
+	//NTSTATUS status = writeMultipleEaEntry();
+
+	// write multiple EA entries with NtCreateFile.
+	NTSTATUS status = writeMultipleEaEntryWithNtCreateFile();
 	return status;
 
 	// 
