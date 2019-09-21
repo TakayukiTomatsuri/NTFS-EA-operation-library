@@ -447,7 +447,7 @@ typedef NTSTATUS(__stdcall* pNtQueryEaFile)(
 	IN BOOLEAN              ReturnSingleEntry,       
 	IN PVOID                EaList OPTIONAL,         // Specify a list of FILE_GET_EA_INFORMATION in order to search EA entries by EaName.
 	IN ULONG                EaListLength,            // If EaList is not specified, this argument can be set to NULL, too.
-	IN PULONG               EaIndex OPTIONAL,        // If specified, it returned only one EA entry.
+	IN PULONG               EaIndex OPTIONAL,        // One-based index. NOT ZERO-BASED !!! If it specified, it returned only one EA entry.
 	IN BOOLEAN              RestartScan              // Basically, NtQueryEafile returns the next entries after the last returned EA entry. If true, returns EA entries starting at index 0 always.
 	);
 
@@ -608,14 +608,13 @@ NTSTATUS readEaEntryWithNtQueryEaFile() {
 		, NULL
 	);
 
-
-
 	ULONG eaLength = 5000;
 	PVOID eaBuffer = malloc(eaLength);
 	IO_STATUS_BLOCK ioStatusBlock = { 0 };
 	NTSTATUS status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, FALSE, NULL, NULL, NULL, FALSE);
 	showAllEaEntriesInEaBuffer(eaBuffer);
 
+	//// Repeated querying
 	//NTSTATUS status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, TRUE, NULL, NULL, NULL, FALSE);
 	//showAllEaEntriesInEaBuffer(eaBuffer);
 	//status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, TRUE, NULL, NULL, NULL, FALSE);
@@ -664,6 +663,38 @@ NTSTATUS readEaEntryWithNtQueryEaFileWithSpecifyingEaName() {
 	return status;
 }
 
+NTSTATUS readEaEntryWithNtQueryEaFileWithSpecifyingEaIndex() {
+	pNtQueryEaFile NtQueryEaFile = (pNtQueryEaFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtQueryEaFile");
+
+	//Open or Create the victim file.
+	LPWSTR victimFilePath = getFilePathWithCurrentDirectory((LPWSTR)L"victim.txt");
+	HANDLE hVictimFile = CreateFile(
+		victimFilePath
+		, GENERIC_WRITE | GENERIC_READ
+		, 0
+		, NULL
+		, OPEN_ALWAYS
+		, FILE_ATTRIBUTE_NORMAL
+		, NULL
+	);
+
+
+
+	ULONG eaLength = 5000;
+	PVOID eaBuffer = malloc(eaLength);
+	IO_STATUS_BLOCK ioStatusBlock = { 0 };
+	ULONG desiredEaIndex = 2;   // It's one-based index. NOT ZERO-BASED!!!
+	NTSTATUS status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, FALSE, NULL, NULL, &desiredEaIndex, FALSE);
+	showAllEaEntriesInEaBuffer(eaBuffer);
+
+	//NTSTATUS status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, TRUE, NULL, NULL, NULL, FALSE);
+	//showAllEaEntriesInEaBuffer(eaBuffer);
+	//status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, TRUE, NULL, NULL, NULL, FALSE);
+	//showAllEaEntriesInEaBuffer(eaBuffer);
+
+	return status;
+}
+
 
 int main()
 {
@@ -680,8 +711,8 @@ int main()
 	//return status;
 
 	// read EA entries
-	//NTSTATUS readEaStatus = readEaEntryWithNtQueryEaFile();
-	NTSTATUS readEaStatus = readEaEntryWithNtQueryEaFileWithSpecifyingEaName();
+	NTSTATUS readEaStatus = readEaEntryWithNtQueryEaFile();
+	//NTSTATUS readEaStatus = readEaEntryWithNtQueryEaFileWithSpecifyingEaName();
 	return readEaStatus;
 
 	// 
