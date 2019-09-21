@@ -184,7 +184,7 @@ LPWSTR getFilePathWithCurrentDirectory( IN LPWSTR FileName) {
 // First. 
 // Simply open file with CrateFile().
 // Then, write $EA with NtSetEaFile().
-NTSTATUS writeSingleEaEntry() {
+NTSTATUS test_writeSingleEaEntry() {
 	//HANDLE victimeFile = CreateFileW(L"hoge");
 	LPWSTR victimFilePath = getFilePathWithCurrentDirectory((LPWSTR)L"victim.txt");
 	HANDLE hVictimFile = CreateFile(
@@ -226,7 +226,7 @@ NTSTATUS writeSingleEaEntry() {
 
 #include<stdio.h>
 
-NTSTATUS writeMultipleEaEntry() {
+NTSTATUS test_writeMultipleEaEntry() {
 	//HANDLE victimeFile = CreateFileW(L"hoge");
 	LPWSTR victimFilePath = getFilePathWithCurrentDirectory((LPWSTR)L"victim.txt");
 	HANDLE hVictimFile = CreateFile(
@@ -370,7 +370,7 @@ typedef VOID(__stdcall* _RtlInitUnicodeString)(
 
 
 
-NTSTATUS writeMultipleEaEntryWithNtCreateFile() {
+NTSTATUS test_writeMultipleEaEntryWithNtCreateFile() {
 	_NtCreateFile NtCreateFile = (_NtCreateFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtCreateFile");
 	_RtlInitUnicodeString RtlInitUnicodeString = (_RtlInitUnicodeString)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "RtlInitUnicodeString");
 
@@ -593,7 +593,7 @@ int showAllEaSearchTargetEntriesInBuffer(PVOID EaSearchTargetListBuffer) {
 	return 0;
 }
 
-NTSTATUS readEaEntryWithNtQueryEaFile() {	
+NTSTATUS test_readEaEntryWithNtQueryEaFile() {	
 	pNtQueryEaFile NtQueryEaFile = (pNtQueryEaFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtQueryEaFile");
 
 	//Open or Create the victim file.
@@ -623,7 +623,7 @@ NTSTATUS readEaEntryWithNtQueryEaFile() {
 	return status;
 }
 
-NTSTATUS readEaEntryWithNtQueryEaFileWithSpecifyingEaName() {
+NTSTATUS test_readEaEntryWithNtQueryEaFileWithSpecifyingEaName() {
 	pNtQueryEaFile NtQueryEaFile = (pNtQueryEaFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtQueryEaFile");
 
 	//Open or Create the victim file.
@@ -663,7 +663,7 @@ NTSTATUS readEaEntryWithNtQueryEaFileWithSpecifyingEaName() {
 	return status;
 }
 
-NTSTATUS readEaEntryWithNtQueryEaFileWithSpecifyingEaIndex() {
+NTSTATUS test_readEaEntryWithNtQueryEaFileWithSpecifyingEaIndex() {
 	pNtQueryEaFile NtQueryEaFile = (pNtQueryEaFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtQueryEaFile");
 
 	//Open or Create the victim file.
@@ -701,18 +701,18 @@ int main()
     std::cout << "Hello World!\n";
 
 	// write single EA entry.
-	//return writeSingleEaEntry();
+	//return test_writeSingleEaEntry();
 
 	// write multiple EA entries.
-	//NTSTATUS status = writeMultipleEaEntry();
+	//NTSTATUS status = test_writeMultipleEaEntry();
 
 	// write multiple EA entries with NtCreateFile.
-	NTSTATUS writeEaStatus = writeMultipleEaEntryWithNtCreateFile();
+	NTSTATUS writeEaStatus = test_writeMultipleEaEntryWithNtCreateFile();
 	//return status;
 
 	// read EA entries
-	NTSTATUS readEaStatus = readEaEntryWithNtQueryEaFile();
-	//NTSTATUS readEaStatus = readEaEntryWithNtQueryEaFileWithSpecifyingEaName();
+	NTSTATUS readEaStatus = test_readEaEntryWithNtQueryEaFile();
+	//NTSTATUS readEaStatus = test_readEaEntryWithNtQueryEaFileWithSpecifyingEaName();
 	return readEaStatus;
 
 	// 
