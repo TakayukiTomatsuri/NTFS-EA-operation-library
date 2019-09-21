@@ -2,6 +2,14 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include<Windows.h>
 
+//CreateFileの操作の選択肢
+// http://www.jbox.dk/sanos/source/include/win32.h.html
+#define CREATE_NEW                       1
+#define CREATE_ALWAYS                    2
+#define OPEN_EXISTING                    3
+#define OPEN_ALWAYS                      4
+#define TRUNCATE_EXISTING                5
+
 typedef struct _IO_STATUS_BLOCK {
 	union {
 		NTSTATUS Status;
@@ -430,6 +438,45 @@ NTSTATUS writeMultipleEaEntryWithNtCreateFile() {
 }
 
 
+//******** READ ******
+typedef NTSTATUS(__stdcall* pNtQueryEaFile)(
+	IN HANDLE               FileHandle,
+	OUT PIO_STATUS_BLOCK    IoStatusBlock,
+	OUT PVOID               Buffer,
+	IN ULONG                Length,
+	IN BOOLEAN              ReturnSingleEntry,
+	IN PVOID                EaList OPTIONAL,
+	IN ULONG                EaListLength,
+	IN PULONG               EaIndex OPTIONAL,
+	IN BOOLEAN              RestartScan
+	);
+
+
+NTSTATUS readEaEntryWithNtQueryEaFile() {	
+	pNtQueryEaFile NtQueryEaFile = (pNtQueryEaFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtQueryEaFile");
+
+	//Open or Create the victim file.
+	LPWSTR victimFilePath = getFilePathWithCurrentDirectory((LPWSTR)L"victim.txt");
+	HANDLE hVictimFile = CreateFile(
+		victimFilePath
+		, GENERIC_WRITE | GENERIC_READ
+		, 0
+		, NULL
+		, OPEN_ALWAYS
+		, FILE_ATTRIBUTE_NORMAL
+		, NULL
+	);
+
+
+
+	ULONG eaLength = 5000;
+	PVOID eaBuffer = malloc(eaLength);
+	IO_STATUS_BLOCK ioStatusBlock = { 0 };
+	NTSTATUS status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, FALSE, NULL, NULL, NULL, FALSE);
+	showAllEaEntriesInEaBuffer(eaBuffer);
+
+	return status;
+}
 
 
 int main()
@@ -443,8 +490,12 @@ int main()
 	//NTSTATUS status = writeMultipleEaEntry();
 
 	// write multiple EA entries with NtCreateFile.
-	NTSTATUS status = writeMultipleEaEntryWithNtCreateFile();
-	return status;
+	NTSTATUS writeEaStatus = writeMultipleEaEntryWithNtCreateFile();
+	//return status;
+
+	// read EA entries
+	NTSTATUS readEaStatus = readEaEntryWithNtQueryEaFile();
+	return readEaStatus;
 
 	// 
 }
