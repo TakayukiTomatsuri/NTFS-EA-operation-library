@@ -2,7 +2,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include<Windows.h>
 
-//CreateFileの操作の選択肢
+//createDispositions of CreateFile
 // http://www.jbox.dk/sanos/source/include/win32.h.html
 #define CREATE_NEW                       1
 #define CREATE_ALWAYS                    2
@@ -81,7 +81,7 @@ FILE_FULL_EA_INFORMATION* makeEaEntry(
 	return eaEntryBuffer;
 }
 
-PVOID addEaEntryAtTopOfEaBuffer(
+PVOID appendEaEntryAtTopOfEaBuffer(
 	IN  FILE_FULL_EA_INFORMATION * EaEntry,
 	IN  PVOID EaBuffer,
 	IN  ULONG EaLength,
@@ -108,7 +108,7 @@ int showAllEaEntriesInEaBuffer(PVOID EaBuffer) {
 	ULONG totalOffset = 0;
 	ULONG eaEntryIndex = 0;
 	while (true) {
-		OutputDebugString(L"hogehoge!");
+		OutputDebugString(L"ENTRY showAllEaEntriesInEaBuffer\n");
 
 		//char* detailOfEaEntry = (char*)malloc(5000);
 		//sprintf(
@@ -273,7 +273,7 @@ NTSTATUS writeMultipleEaEntry() {
 	);
 
 	ULONG allEaLength = -1;
-	PVOID allEaBuffer = addEaEntryAtTopOfEaBuffer(eaBuffer_1, eaBuffer_2, calcEaEntryLength(eaBuffer_2->EaNameLength, eaBuffer_2->EaValueLength), &allEaLength);
+	PVOID allEaBuffer = appendEaEntryAtTopOfEaBuffer(eaBuffer_1, eaBuffer_2, calcEaEntryLength(eaBuffer_2->EaNameLength, eaBuffer_2->EaValueLength), &allEaLength);
 	
 	showAllEaEntriesInEaBuffer(allEaBuffer);
 
@@ -302,7 +302,7 @@ NTSTATUS writeMultipleEaEntry() {
 
 //*****************
 // not suitable: https://stackoverflow.com/questions/7486896/need-help-using-ntcreatefile-to-open-by-fileindex
-// suitable!: https://www.sysnative.com/forums/threads/ntcreatefile-example.8592/
+// suitable article!: https://www.sysnative.com/forums/threads/ntcreatefile-example.8592/
 
 //typedef struct _IO_STATUS_BLOCK {
 //	union {
@@ -423,7 +423,7 @@ NTSTATUS writeMultipleEaEntryWithNtCreateFile() {
 	);
 
 	ULONG allEaLength = -1;
-	PVOID allEaBuffer = addEaEntryAtTopOfEaBuffer(eaBuffer_1, eaBuffer_2, calcEaEntryLength(eaBuffer_2->EaNameLength, eaBuffer_2->EaValueLength), &allEaLength);
+	PVOID allEaBuffer = appendEaEntryAtTopOfEaBuffer(eaBuffer_1, eaBuffer_2, calcEaEntryLength(eaBuffer_2->EaNameLength, eaBuffer_2->EaValueLength), &allEaLength);
 
 	showAllEaEntriesInEaBuffer(allEaBuffer);
 	//-------------------
@@ -444,13 +444,154 @@ typedef NTSTATUS(__stdcall* pNtQueryEaFile)(
 	OUT PIO_STATUS_BLOCK    IoStatusBlock,
 	OUT PVOID               Buffer,
 	IN ULONG                Length,
-	IN BOOLEAN              ReturnSingleEntry,
-	IN PVOID                EaList OPTIONAL,
-	IN ULONG                EaListLength,
-	IN PULONG               EaIndex OPTIONAL,
-	IN BOOLEAN              RestartScan
+	IN BOOLEAN              ReturnSingleEntry,       
+	IN PVOID                EaList OPTIONAL,         // Specify a list of FILE_GET_EA_INFORMATION in order to search EA entries by EaName.
+	IN ULONG                EaListLength,            // If EaList is not specified, this argument can be set to NULL, too.
+	IN PULONG               EaIndex OPTIONAL,        // If specified, it returned only one EA entry.
+	IN BOOLEAN              RestartScan              // Basically, NtQueryEafile returns the next entries after the last returned EA entry. If true, returns EA entries starting at index 0 always.
 	);
 
+#define MAX_EA_NAME_LENGTH 255
+
+typedef struct _FILE_GET_EA_INFORMATION {
+	ULONG                   NextEntryOffset;
+	BYTE                    EaNameLength;
+	CHAR                    EaName[1];
+} FILE_GET_EA_INFORMATION, * PFILE_GET_EA_INFORMATION;
+
+ULONG calcEaSearchTargetEntryLength(
+	BYTE TargetEaNameLength
+) {
+	ULONG eaSearchTargetEntryLength = sizeof(ULONG) + sizeof(BYTE) + (TargetEaNameLength + 1);
+
+	// align 4bytes boundry
+	size_t alignmentBoundry = sizeof(ULONG);
+	if (eaSearchTargetEntryLength % alignmentBoundry != 0) {
+		eaSearchTargetEntryLength = eaSearchTargetEntryLength + (alignmentBoundry - (eaSearchTargetEntryLength % alignmentBoundry));
+	}
+
+	return eaSearchTargetEntryLength;
+}
+
+FILE_GET_EA_INFORMATION* makeEaSeachTargetEntry(
+	IN  CHAR   SearchTargetEaName[],
+	OUT ULONG *EaSearchTargetEntryLength
+) {
+	size_t nameLength = strlen(SearchTargetEaName);
+	if (nameLength > MAX_EA_NAME_LENGTH) return NULL;
+
+	*EaSearchTargetEntryLength = calcEaSearchTargetEntryLength(nameLength);
+	FILE_GET_EA_INFORMATION* eaSearchTargetEntry = (FILE_GET_EA_INFORMATION*)malloc(*EaSearchTargetEntryLength);
+
+	eaSearchTargetEntry->NextEntryOffset = 0;
+	eaSearchTargetEntry->EaNameLength = (BYTE)nameLength;
+	memcpy(eaSearchTargetEntry->EaName, SearchTargetEaName, nameLength + 1); //copy start to terminator character.
+
+	return eaSearchTargetEntry;
+}
+
+PVOID appendEaSeachTargetEntryToListAtTop(
+	IN FILE_GET_EA_INFORMATION* EaSeachTargetEntry,
+	IN PVOID EaSeachTargetEntryListBuffer,            // can be set to NULL
+	IN ULONG EaSeachTargetEntryListBufferLength,      // can be set to 0.
+	OUT ULONG * ReturnedEaSeachTargetEntryListBufferLength
+) {
+	if (EaSeachTargetEntryListBufferLength < 0) {
+		OutputDebugString(L"FAILED: appendEaSeachTargetEntryToListAtTop: Invalid EaSeachTargetEntryListBufferLength.\n");
+		return NULL;
+	}
+	//calc length
+	ULONG eaSeachTargetEntryLength = calcEaSearchTargetEntryLength(EaSeachTargetEntry->EaNameLength);
+	*ReturnedEaSeachTargetEntryListBufferLength = EaSeachTargetEntryListBufferLength + eaSeachTargetEntryLength;
+
+	//allocate
+	PVOID concatenatedEaSeachTargetEntryListBuffer = malloc(*ReturnedEaSeachTargetEntryListBufferLength);
+	if (concatenatedEaSeachTargetEntryListBuffer == NULL) {
+		OutputDebugString(L"FAILED: appendEaSeachTargetEntryToListAtTop: memory allocation failed.\n");
+		return NULL;
+	}
+	memset(concatenatedEaSeachTargetEntryListBuffer, 0, *ReturnedEaSeachTargetEntryListBufferLength);
+
+	// concat
+	memcpy(concatenatedEaSeachTargetEntryListBuffer, EaSeachTargetEntry, eaSeachTargetEntryLength);
+	//if NULL, memcpy don't work
+	if (EaSeachTargetEntryListBuffer != NULL) {
+		memcpy( (char *)concatenatedEaSeachTargetEntryListBuffer + eaSeachTargetEntryLength, EaSeachTargetEntryListBuffer, EaSeachTargetEntryListBufferLength);
+		//  change firest entry's NextEntryOffset.
+		((FILE_GET_EA_INFORMATION*)concatenatedEaSeachTargetEntryListBuffer)->NextEntryOffset = eaSeachTargetEntryLength;
+	}
+	
+	return concatenatedEaSeachTargetEntryListBuffer;
+}
+
+PVOID makeEaSearchTargetEntryListBuffer(
+	IN  CHAR   *SearchTargetEaNameList[],
+	IN  INT    SearchTargetEaNameListLength,
+	OUT ULONG  *EaSearchTargetEntryListBufferLength
+) 
+{
+	//FILE_GET_EA_INFORMATION* eaSearchTargetEntry = NULL;
+	//*EaSearchListLength =  
+	//eaSearchTargetEntry = (FILE_GET_EA_INFORMATION*)malloc(sizeof(FILE_GET_EA_INFORMATION));
+	//if (eaSearchTargetEntry) return NULL;
+
+	PVOID eaSearchTargetEntryListBuffer = NULL;
+	ULONG eaSearchTargetEntryListBufferLength = 0;
+	for (int ind = 0; ind < SearchTargetEaNameListLength; ind++) {
+		if (SearchTargetEaNameList[ind] == NULL) {
+			OutputDebugString(L"FAILED: makeEaSearchTargetEntryListBuffer: searchTargetEaName is NULL.\n");
+			return NULL;
+		}
+
+		size_t nameLength = strlen(SearchTargetEaNameList[ind]);
+		if (nameLength > MAX_EA_NAME_LENGTH){
+			OutputDebugString(L"FAILED: makeEaSearchTargetEntryListBuffer: searchTargetEaName is too long.\n");
+			return NULL;
+		}
+
+		//eaSearchTargetEntry->EaNameLength = (BYTE)nameLength;
+		//eaSearchTargetEntry->EaName = malloc(nameLength + 1);
+		ULONG _eaSearchTargetEntryLength = -1;
+		FILE_GET_EA_INFORMATION *eaSearchTargetEntry = makeEaSeachTargetEntry(SearchTargetEaNameList[ind], &_eaSearchTargetEntryLength);
+		eaSearchTargetEntryListBuffer = appendEaSeachTargetEntryToListAtTop(eaSearchTargetEntry, eaSearchTargetEntryListBuffer, eaSearchTargetEntryListBufferLength, &eaSearchTargetEntryListBufferLength);
+			
+		if (eaSearchTargetEntryListBuffer == NULL) {
+			OutputDebugString(L"FAILED: makeEaSearchTargetEntryListBuffer: appendEaSeachTargetEntryToListAtTop returned NULL.\n");
+			return NULL;
+		}
+	}
+
+	*EaSearchTargetEntryListBufferLength = eaSearchTargetEntryListBufferLength;
+	return eaSearchTargetEntryListBuffer;
+
+}
+
+int showAllEaSearchTargetEntriesInBuffer(PVOID EaSearchTargetListBuffer) {
+	FILE_GET_EA_INFORMATION* currentEaSearchTargetEntry = (FILE_GET_EA_INFORMATION*)EaSearchTargetListBuffer;
+	ULONG totalOffset = 0;
+	ULONG eaEntryIndex = 0;
+	while (true) {
+		OutputDebugString(L"ENTRY showAllEaSearchTargetEntriesInBuffer\n");
+
+		printf("Index: %d\ntotalOffset: %d\n EaEntry->NextEntryOffset: %d\n EaEntry->EaNameLength: %d\n EaName: %s\n\n",
+			eaEntryIndex,
+			totalOffset,
+			currentEaSearchTargetEntry->NextEntryOffset,
+			currentEaSearchTargetEntry->EaNameLength,
+			&currentEaSearchTargetEntry->EaName[0]
+		);
+
+		// The last entry has 0 in NextEntryOffset.
+		if (currentEaSearchTargetEntry->NextEntryOffset == 0) break;
+
+		totalOffset = totalOffset + currentEaSearchTargetEntry->NextEntryOffset;
+		eaEntryIndex = eaEntryIndex + 1;
+		currentEaSearchTargetEntry = (FILE_GET_EA_INFORMATION*)((char*)currentEaSearchTargetEntry + currentEaSearchTargetEntry->NextEntryOffset);
+
+	}
+
+	return 0;
+}
 
 NTSTATUS readEaEntryWithNtQueryEaFile() {	
 	pNtQueryEaFile NtQueryEaFile = (pNtQueryEaFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtQueryEaFile");
@@ -475,6 +616,51 @@ NTSTATUS readEaEntryWithNtQueryEaFile() {
 	NTSTATUS status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, FALSE, NULL, NULL, NULL, FALSE);
 	showAllEaEntriesInEaBuffer(eaBuffer);
 
+	//NTSTATUS status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, TRUE, NULL, NULL, NULL, FALSE);
+	//showAllEaEntriesInEaBuffer(eaBuffer);
+	//status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, TRUE, NULL, NULL, NULL, FALSE);
+	//showAllEaEntriesInEaBuffer(eaBuffer);
+
+	return status;
+}
+
+NTSTATUS readEaEntryWithNtQueryEaFileWithSpecifyingEaName() {
+	pNtQueryEaFile NtQueryEaFile = (pNtQueryEaFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtQueryEaFile");
+
+	//Open or Create the victim file.
+	LPWSTR victimFilePath = getFilePathWithCurrentDirectory((LPWSTR)L"victim.txt");
+	HANDLE hVictimFile = CreateFile(
+		victimFilePath
+		, GENERIC_WRITE | GENERIC_READ
+		, 0
+		, NULL
+		, OPEN_ALWAYS
+		, FILE_ATTRIBUTE_NORMAL
+		, NULL
+	);
+
+	// make trget list
+	const CHAR* targetEaNames[2];
+	targetEaNames[0] = "E2";
+	targetEaNames[1] = "E1AAA";
+
+	ULONG eaSearchTargetEntryListBufferLength = -1;
+	PVOID eaSearchTargetEntryListBuffer = makeEaSearchTargetEntryListBuffer((CHAR **)targetEaNames, 2, &eaSearchTargetEntryListBufferLength);
+	showAllEaSearchTargetEntriesInBuffer(eaSearchTargetEntryListBuffer);
+
+
+	// read
+	ULONG eaLength = 5000;
+	PVOID eaBuffer = malloc(eaLength);
+	IO_STATUS_BLOCK ioStatusBlock = { 0 };
+	NTSTATUS status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, FALSE, eaSearchTargetEntryListBuffer, eaSearchTargetEntryListBufferLength, NULL, FALSE);
+	showAllEaEntriesInEaBuffer(eaBuffer);
+
+	//NTSTATUS status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, TRUE, NULL, NULL, NULL, FALSE);
+	//showAllEaEntriesInEaBuffer(eaBuffer);
+	//status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, TRUE, NULL, NULL, NULL, FALSE);
+	//showAllEaEntriesInEaBuffer(eaBuffer);
+
 	return status;
 }
 
@@ -494,7 +680,8 @@ int main()
 	//return status;
 
 	// read EA entries
-	NTSTATUS readEaStatus = readEaEntryWithNtQueryEaFile();
+	//NTSTATUS readEaStatus = readEaEntryWithNtQueryEaFile();
+	NTSTATUS readEaStatus = readEaEntryWithNtQueryEaFileWithSpecifyingEaName();
 	return readEaStatus;
 
 	// 
