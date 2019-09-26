@@ -52,7 +52,7 @@ FILE_FULL_EA_INFORMATION* makeEaEntry(
 	IN  UCHAR   EaNameLength,
 	IN  USHORT  EaValueLength,
 	IN  char*   EaName,            // containing terminator 0x00.
-	IN  char*   EaValue,           // EaValue isn't restlicted to Ascii format. So EaValueLength should be contain terminator 0x00 if EaValue is Ascii.
+	IN  char*   EaValue,           // EaValue isn't restricted to Ascii format. So EaValueLength should be contain terminator 0x00 if EaValue is Ascii. (?)
 	//IN CHAR   EaName[1];
 	OUT ULONG*  EaEntryLength
 )
@@ -125,7 +125,7 @@ int showAllEaEntriesInEaBuffer(PVOID EaBuffer) {
 		//printf(detailOfEaEntry);
 		/*std::cout << detailOfEaEntry;*/
 
-		//EaValue isn't restlicted to ascii. In order to print EaValue as ascii, it should be terminated 0x00.
+		//EaValue isn't restricted to ascii. In order to print EaValue as ascii, it should be terminated 0x00.
 		PVOID tmpBufForShowAsAscii = malloc(currentEaEntry->EaValueLength +1);
 		memset(tmpBufForShowAsAscii, 0, currentEaEntry->EaValueLength + 1);
 		memcpy(tmpBufForShowAsAscii, &currentEaEntry->EaName[currentEaEntry->EaNameLength + 1], currentEaEntry->EaValueLength);
