@@ -2,8 +2,8 @@
 
 ULONG calcEaEntryLength(
 	IN  UCHAR   EaNameLength,
-	IN  USHORT  EaValueLength)
-{
+	IN  USHORT  EaValueLength
+){
 	ULONG eaEntryLength = sizeof(ULONG) + sizeof(UCHAR) * 2 + sizeof(USHORT) + (EaNameLength + 1) + (EaValueLength + 0);
 	//4bytes align. 
 	ULONG alignmentBoundry = sizeof(ULONG);
@@ -21,8 +21,7 @@ FILE_FULL_EA_INFORMATION* makeEaEntry(
 	IN  char*   EaValue,           // EaValue isn't restricted to Ascii format. So EaValueLength should be contain terminator 0x00 if EaValue is Ascii. (?)
 	//IN CHAR   EaName[1];
 	OUT ULONG*  EaEntryLength
-)
-{
+){
 	FILE_FULL_EA_INFORMATION* eaEntryBuffer = NULL;
 	ULONG eaEntryLength = calcEaEntryLength(EaNameLength, EaValueLength);
 	//4bytes align. 
@@ -69,7 +68,9 @@ PVOID appendEaEntryAtTopOfEaBuffer(
 
 
 
-int showAllEaEntriesInEaBuffer(PVOID EaBuffer) {
+int showAllEaEntriesInEaBuffer(
+	PVOID EaBuffer
+) {
 	FILE_FULL_EA_INFORMATION* currentEaEntry = (FILE_FULL_EA_INFORMATION*)EaBuffer;
 	ULONG totalOffset = 0;
 	ULONG eaEntryIndex = 0;
@@ -120,7 +121,9 @@ int showAllEaEntriesInEaBuffer(PVOID EaBuffer) {
 	return 0;
 }
 
-LPWSTR getFilePathWithCurrentDirectory( IN LPWSTR FileName) {
+LPWSTR getFilePathWithCurrentDirectory(
+	IN LPWSTR FileName
+) {
 	WCHAR szModulePath[MAX_PATH];
 
 	//GetModuleFileNameW(NULL,
@@ -186,7 +189,7 @@ FILE_GET_EA_INFORMATION* makeEaSeachTargetEntry(
 	return eaSearchTargetEntry;
 }
 
-PVOID appendEaSeachTargetEntryToListAtTop(
+PVOID appendEaSeachTargetEntryAtTopOfList(
 	IN FILE_GET_EA_INFORMATION* EaSeachTargetEntry,
 	IN PVOID EaSeachTargetEntryListBuffer,            // can be set to NULL
 	IN ULONG EaSeachTargetEntryListBufferLength,      // can be set to 0.
@@ -249,7 +252,7 @@ PVOID makeEaSearchTargetEntryListBuffer(
 		//eaSearchTargetEntry->EaName = malloc(nameLength + 1);
 		ULONG _eaSearchTargetEntryLength = -1;
 		FILE_GET_EA_INFORMATION *eaSearchTargetEntry = makeEaSeachTargetEntry(SearchTargetEaNameList[ind], &_eaSearchTargetEntryLength);
-		eaSearchTargetEntryListBuffer = appendEaSeachTargetEntryToListAtTop(eaSearchTargetEntry, eaSearchTargetEntryListBuffer, eaSearchTargetEntryListBufferLength, &eaSearchTargetEntryListBufferLength);
+		eaSearchTargetEntryListBuffer = appendEaSeachTargetEntryAtTopOfList(eaSearchTargetEntry, eaSearchTargetEntryListBuffer, eaSearchTargetEntryListBufferLength, &eaSearchTargetEntryListBufferLength);
 			
 		if (eaSearchTargetEntryListBuffer == NULL) {
 			OutputDebugString(L"FAILED: makeEaSearchTargetEntryListBuffer: appendEaSeachTargetEntryToListAtTop returned NULL.\n");
@@ -262,7 +265,9 @@ PVOID makeEaSearchTargetEntryListBuffer(
 
 }
 
-int showAllEaSearchTargetEntriesInBuffer(PVOID EaSearchTargetListBuffer) {
+int showAllEaSearchTargetEntriesInBuffer(
+	PVOID EaSearchTargetListBuffer
+) {
 	FILE_GET_EA_INFORMATION* currentEaSearchTargetEntry = (FILE_GET_EA_INFORMATION*)EaSearchTargetListBuffer;
 	ULONG totalOffset = 0;
 	ULONG eaEntryIndex = 0;

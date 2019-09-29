@@ -4,7 +4,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include<Windows.h>
 
-//createDispositions of CreateFile
+//createDispositions which is argument of CreateFile
 // http://www.jbox.dk/sanos/source/include/win32.h.html
 #define CREATE_NEW                       1
 #define CREATE_ALWAYS                    2
@@ -19,7 +19,6 @@ typedef struct _IO_STATUS_BLOCK {
 	} DUMMYUNIONNAME;
 	ULONG_PTR Information;
 } IO_STATUS_BLOCK, * PIO_STATUS_BLOCK;
-
 
 typedef struct _FILE_FULL_EA_INFORMATION {
 	ULONG  NextEntryOffset;
@@ -36,7 +35,7 @@ typedef NTSTATUS(__stdcall* pNtSetEaFile)(
 	ULONG            Length
 	);
 
-
+// ***** Functions for writing EA ****
 
 ULONG calcEaEntryLength(
 	IN  UCHAR   EaNameLength,
@@ -68,20 +67,11 @@ LPWSTR getFilePathWithCurrentDirectory(
 	IN LPWSTR FileName
 );
 
-//*****Write EA with NtCreateFile
+//**** Definitions for writing EA with NtCreateFile **
 
 //*****************
 // not suitable: https://stackoverflow.com/questions/7486896/need-help-using-ntcreatefile-to-open-by-fileindex
 // suitable article!: https://www.sysnative.com/forums/threads/ntcreatefile-example.8592/
-
-//typedef struct _IO_STATUS_BLOCK {
-//	union {
-//		NTSTATUS Status;
-//		PVOID Pointer;
-//	} DUMMYUNIONNAME;
-//
-//	ULONG_PTR Information;
-//} IO_STATUS_BLOCK, * PIO_STATUS_BLOCK;
 
 typedef struct _UNICODE_STRING {
 	USHORT Length;
@@ -139,10 +129,11 @@ typedef VOID(__stdcall* _RtlInitUnicodeString)(
    }
 
 
-// NO ANY FUNCTION
+// NO ANY UTILIYT FUNCTIONS for writing EA with NtCreateFile
 
 
-//******** READ EA ******
+// **** Definitions for reading EA ****
+
 typedef NTSTATUS(__stdcall* pNtQueryEaFile)(
 	IN HANDLE               FileHandle,
 	OUT PIO_STATUS_BLOCK    IoStatusBlock,
@@ -163,6 +154,7 @@ typedef struct _FILE_GET_EA_INFORMATION {
 	CHAR                    EaName[1];
 } FILE_GET_EA_INFORMATION, * PFILE_GET_EA_INFORMATION;
 
+// **** Functions for reading EA ****
 
 ULONG calcEaSearchTargetEntryLength(
 	BYTE TargetEaNameLength
@@ -173,8 +165,7 @@ FILE_GET_EA_INFORMATION* makeEaSeachTargetEntry(
 	OUT ULONG* EaSearchTargetEntryLength
 );
 
-
-PVOID appendEaSeachTargetEntryToListAtTop(
+PVOID appendEaSeachTargetEntryAtTopOfList(
 	IN FILE_GET_EA_INFORMATION* EaSeachTargetEntry,
 	IN PVOID EaSeachTargetEntryListBuffer,            // can be set to NULL
 	IN ULONG EaSeachTargetEntryListBufferLength,      // can be set to 0.

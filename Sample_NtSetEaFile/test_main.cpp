@@ -5,7 +5,7 @@
 // Simply open file with CrateFile().
 // Then, write $EA with NtSetEaFile().
 NTSTATUS test_writeSingleEaEntry() {
-	//HANDLE victimeFile = CreateFileW(L"hoge");
+	// Create file
 	LPWSTR victimFilePath = getFilePathWithCurrentDirectory((LPWSTR)L"victim.txt");
 	HANDLE hVictimFile = CreateFile(
 		victimFilePath
@@ -17,12 +17,11 @@ NTSTATUS test_writeSingleEaEntry() {
 		, NULL
 	);
 
+	//// Write dummy content
+	//DWORD dwWriteSize = 0;
+	//WriteFile(hVictimFile, L"helloworld", sizeof(L"helloworld"), &dwWriteSize, NULL);
 
-	DWORD dwWriteSize = 0;
-	WriteFile(hVictimFile, L"helloworld", sizeof(L"helloworld"), &dwWriteSize, NULL);
-
-
-
+	// Make EA content
 	pNtSetEaFile NtSetEaFile = (pNtSetEaFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtSetEaFile");
 	ULONG eaLength = -1;
 	char name[] = "ea1";
@@ -36,6 +35,8 @@ NTSTATUS test_writeSingleEaEntry() {
 		val,
 		&eaLength
 	);
+
+	// Write EA
 	IO_STATUS_BLOCK ioStatusBlock = { 0 };
 	NTSTATUS status = NtSetEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength);
 
@@ -46,8 +47,9 @@ NTSTATUS test_writeSingleEaEntry() {
 
 #include<stdio.h>
 
+// Write multiple EA entries
 NTSTATUS test_writeMultipleEaEntry() {
-	//HANDLE victimeFile = CreateFileW(L"hoge");
+	// Create file
 	LPWSTR victimFilePath = getFilePathWithCurrentDirectory((LPWSTR)L"victim.txt");
 	HANDLE hVictimFile = CreateFile(
 		victimFilePath
@@ -59,13 +61,11 @@ NTSTATUS test_writeMultipleEaEntry() {
 		, NULL
 	);
 
+	//// Write dummy content
+	//DWORD dwWriteSize = 0;
+	//WriteFile(hVictimFile, L"helloworld", sizeof(L"helloworld"), &dwWriteSize, NULL);
 
-	DWORD dwWriteSize = 0;
-	WriteFile(hVictimFile, L"helloworld", sizeof(L"helloworld"), &dwWriteSize, NULL);
-
-
-
-
+	// Make EA content
 	ULONG eaLength_1 = -1;
 	char name_1[] = "e1aaa"; //’Z‚¢‚ÆInconsistentEa‚È‚ñ‚Æ‚©‚É‚È‚éH
 	char val_1[] = "v1";
@@ -97,19 +97,7 @@ NTSTATUS test_writeMultipleEaEntry() {
 
 	showAllEaEntriesInEaBuffer(allEaBuffer);
 
-	//eaBuffer_1->NextEntryOffset = eaLength_1;
-	//ULONG allEaLength = eaLength_1 + eaLength_2;
-	//PVOID allEaBuffer = (PVOID)malloc(allEaLength);
-	//memset(allEaBuffer, 0, allEaLength);
-	//memcpy(allEaBuffer, eaBuffer_1, eaLength_1);
-
-	//memcpy((char*)allEaBuffer + eaLength_1, eaBuffer_2, eaLength_2);
-
-
-	////test
-	//(FILE_FULL_EA_INFORMATION *)allEaBuffer
-	////test
-
+	// Write EA
 	IO_STATUS_BLOCK ioStatusBlock = { 0 };
 	pNtSetEaFile NtSetEaFile = (pNtSetEaFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtSetEaFile");
 	NTSTATUS status = NtSetEaFile(hVictimFile, &ioStatusBlock, allEaBuffer, allEaLength);
@@ -121,6 +109,7 @@ NTSTATUS test_writeMultipleEaEntry() {
 
 //************
 
+// Write multiple EA entries with NtCreateFile but not NtSetEaFile
 NTSTATUS test_writeMultipleEaEntryWithNtCreateFile() {
 	_NtCreateFile NtCreateFile = (_NtCreateFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtCreateFile");
 	_RtlInitUnicodeString RtlInitUnicodeString = (_RtlInitUnicodeString)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "RtlInitUnicodeString");
@@ -128,27 +117,21 @@ NTSTATUS test_writeMultipleEaEntryWithNtCreateFile() {
 	HANDLE hFile;
 	OBJECT_ATTRIBUTES objAttribs = { 0 };
 
-	//std::cout << "Initializing unicode string..." << std::endl;
-	//PCWSTR filePath = L"\\??\\Z:\\NtCreateFileHook.output";
+	// Prepare calling for NtCreateFile
 	PCWSTR filePath = getFilePathWithCurrentDirectory((LPWSTR)L"victim.txt");
 	UNICODE_STRING unicodeString;
 	RtlInitUnicodeString(&unicodeString, filePath);
 
-	//std::cout << "Call to InitializeObjectAttributes for OBJECT_ATTRIBUTES data structure..." << std::endl;
 	InitializeObjectAttributes(&objAttribs, &unicodeString, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
-	//std::cout << "Initializing LARGE_INTEGER for allocation size..." << std::endl;
 	const int allocSize = 2048;
 	LARGE_INTEGER largeInteger;
 	largeInteger.QuadPart = allocSize;
 
-	//std::cout << "Calling NtCreateFile..." << std::endl;
 
-	//---- create EA entry list in EaBuffer----
-
-
+	// Create EA entry list in EaBuffer
 	ULONG eaLength_1 = -1;
-	char name_1[] = "e1aaa"; //’Z‚¢‚ÆInconsistentEa‚È‚ñ‚Æ‚©‚É‚È‚éH
+	char name_1[] = "e1aaa"; 
 	char val_1[] = "v1";
 	FILE_FULL_EA_INFORMATION* eaBuffer_1 = makeEaEntry(
 		0,
@@ -177,9 +160,8 @@ NTSTATUS test_writeMultipleEaEntryWithNtCreateFile() {
 	PVOID allEaBuffer = appendEaEntryAtTopOfEaBuffer(eaBuffer_1, eaBuffer_2, calcEaEntryLength(eaBuffer_2->EaNameLength, eaBuffer_2->EaValueLength), &allEaLength);
 
 	showAllEaEntriesInEaBuffer(allEaBuffer);
-	//-------------------
 
-
+	// Write EA with NtCreateFile
 	IO_STATUS_BLOCK ioStatusBlock = { 0 };
 	NTSTATUS status = NtCreateFile(&hFile, STANDARD_RIGHTS_ALL, &objAttribs, &ioStatusBlock, &largeInteger,
 		FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, FILE_OPEN_IF, FILE_NON_DIRECTORY_FILE, allEaBuffer, allEaLength);
@@ -190,10 +172,12 @@ NTSTATUS test_writeMultipleEaEntryWithNtCreateFile() {
 
 //******************
 
+
+// Read all EA entries 
 NTSTATUS test_readEaEntryWithNtQueryEaFile() {
 	pNtQueryEaFile NtQueryEaFile = (pNtQueryEaFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtQueryEaFile");
 
-	//Open or Create the victim file.
+	//Open or create the victim file.
 	LPWSTR victimFilePath = getFilePathWithCurrentDirectory((LPWSTR)L"victim.txt");
 	HANDLE hVictimFile = CreateFile(
 		victimFilePath
@@ -205,6 +189,7 @@ NTSTATUS test_readEaEntryWithNtQueryEaFile() {
 		, NULL
 	);
 
+	// Read EA
 	ULONG eaLength = 5000;
 	PVOID eaBuffer = malloc(eaLength);
 	IO_STATUS_BLOCK ioStatusBlock = { 0 };
@@ -217,13 +202,15 @@ NTSTATUS test_readEaEntryWithNtQueryEaFile() {
 	//status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, TRUE, NULL, NULL, NULL, FALSE);
 	//showAllEaEntriesInEaBuffer(eaBuffer);
 
+	CloseHandle(hVictimFile);
 	return status;
 }
 
+// Read EA entries specified by EaName
 NTSTATUS test_readEaEntryWithNtQueryEaFileWithSpecifyingEaName() {
 	pNtQueryEaFile NtQueryEaFile = (pNtQueryEaFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtQueryEaFile");
 
-	//Open or Create the victim file.
+	//Open or create the victim file.
 	LPWSTR victimFilePath = getFilePathWithCurrentDirectory((LPWSTR)L"victim.txt");
 	HANDLE hVictimFile = CreateFile(
 		victimFilePath
@@ -235,7 +222,7 @@ NTSTATUS test_readEaEntryWithNtQueryEaFileWithSpecifyingEaName() {
 		, NULL
 	);
 
-	// make trget list
+	// Make trget EaName list
 	const CHAR* targetEaNames[2];
 	targetEaNames[0] = "E2";
 	targetEaNames[1] = "E1AAA";
@@ -245,7 +232,7 @@ NTSTATUS test_readEaEntryWithNtQueryEaFileWithSpecifyingEaName() {
 	showAllEaSearchTargetEntriesInBuffer(eaSearchTargetEntryListBuffer);
 
 
-	// read
+	// Read EA entries 
 	ULONG eaLength = 5000;
 	PVOID eaBuffer = malloc(eaLength);
 	IO_STATUS_BLOCK ioStatusBlock = { 0 };
@@ -257,13 +244,15 @@ NTSTATUS test_readEaEntryWithNtQueryEaFileWithSpecifyingEaName() {
 	//status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, TRUE, NULL, NULL, NULL, FALSE);
 	//showAllEaEntriesInEaBuffer(eaBuffer);
 
+	CloseHandle(hVictimFile);
 	return status;
 }
 
+// Read EA entries specified by EaIndex
 NTSTATUS test_readEaEntryWithNtQueryEaFileWithSpecifyingEaIndex() {
 	pNtQueryEaFile NtQueryEaFile = (pNtQueryEaFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtQueryEaFile");
 
-	//Open or Create the victim file.
+	//Open or create the victim file.
 	LPWSTR victimFilePath = getFilePathWithCurrentDirectory((LPWSTR)L"victim.txt");
 	HANDLE hVictimFile = CreateFile(
 		victimFilePath
@@ -275,8 +264,7 @@ NTSTATUS test_readEaEntryWithNtQueryEaFileWithSpecifyingEaIndex() {
 		, NULL
 	);
 
-
-
+	// Read EA entries
 	ULONG eaLength = 5000;
 	PVOID eaBuffer = malloc(eaLength);
 	IO_STATUS_BLOCK ioStatusBlock = { 0 };
@@ -289,6 +277,7 @@ NTSTATUS test_readEaEntryWithNtQueryEaFileWithSpecifyingEaIndex() {
 	//status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, TRUE, NULL, NULL, NULL, FALSE);
 	//showAllEaEntriesInEaBuffer(eaBuffer);
 
+	CloseHandle(hVictimFile);
 	return status;
 }
 
