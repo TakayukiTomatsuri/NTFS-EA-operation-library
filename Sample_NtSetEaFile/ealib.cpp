@@ -336,3 +336,48 @@ EASTATUS validateEaBuffer(
 
 	return EA_VALIDATION_SOMTHING_WRONG;
 }
+
+
+
+// For validation before querying.
+EASTATUS validateEaSearchTargetEntryListBuffer(
+	IN PVOID EaSeachTargetEntryListBuffer,
+	IN ULONG EaSeachTargetEntryListBufferLength
+) {
+	FILE_GET_EA_INFORMATION* currentEaSeachTargetEntry = (FILE_GET_EA_INFORMATION*)EaSeachTargetEntryListBuffer;
+	ULONG residualEaSeachTargetEntryListBufferLength = EaSeachTargetEntryListBufferLength;
+	ULONG totalOffset = 0;
+	ULONG eaEntryIndex = 0;
+	while (true) {
+		ULONG currentEaSeachTargetEntryLength = calcEaSearchTargetEntryLength(currentEaSeachTargetEntry->EaNameLength);
+
+		// Check EaName Length.
+		// (Since the total length of the EA entry is inspected, only EaNameLength or EaValueLength needs to be confirmed.)
+		if (currentEaSeachTargetEntry->EaNameLength != strlen(currentEaSeachTargetEntry->EaName)) {
+			return BAD_EA_NAME_LENGTH;
+		}
+
+
+		// The last entry has 0 in NextEntryOffset.
+		if (currentEaSeachTargetEntry->NextEntryOffset == 0) {
+			if (residualEaSeachTargetEntryListBufferLength == currentEaSeachTargetEntryLength) return EA_VALIDATION_SUCCESS;
+			// EaLength is invalid when EaLength don't match sum of the all EA entries length.
+			else return BAD_EA_BUFFER_LENGTH;
+		}
+		else {
+			// Check whether EaEntry size match EaEntry->NextEntryOffset.
+			if (currentEaSeachTargetEntry->NextEntryOffset != currentEaSeachTargetEntryLength) {
+				return BAD_EA_NEXTENTRYOFFSET;
+			}
+		}
+
+		// Update cursor
+		residualEaSeachTargetEntryListBufferLength = residualEaSeachTargetEntryListBufferLength - currentEaSeachTargetEntryLength;
+
+		totalOffset = totalOffset + currentEaSeachTargetEntry->NextEntryOffset;
+		eaEntryIndex = eaEntryIndex + 1;
+		currentEaSeachTargetEntry = (FILE_GET_EA_INFORMATION*)((char*)currentEaSeachTargetEntry + currentEaSeachTargetEntry->NextEntryOffset);
+	}
+
+	return EA_VALIDATION_SOMTHING_WRONG;
+}

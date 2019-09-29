@@ -233,6 +233,8 @@ NTSTATUS test_readEaEntryWithNtQueryEaFileWithSpecifyingEaName() {
 	PVOID eaSearchTargetEntryListBuffer = makeEaSearchTargetEntryListBuffer((CHAR * *)targetEaNames, 2, &eaSearchTargetEntryListBufferLength);
 	showAllEaSearchTargetEntriesInBuffer(eaSearchTargetEntryListBuffer);
 
+	// Validation of EaName list
+	EASTATUS resultOfVaridateEaSearchTargetEntryListBuffer = validateEaSearchTargetEntryListBuffer(eaSearchTargetEntryListBuffer, eaSearchTargetEntryListBufferLength);
 
 	// Read EA entries 
 	ULONG eaLength = 5000;
@@ -250,7 +252,7 @@ NTSTATUS test_readEaEntryWithNtQueryEaFileWithSpecifyingEaName() {
 	return status;
 }
 
-// Read EA entries specified by EaIndex
+// Read EA entry specified by EaIndex
 NTSTATUS test_readEaEntryWithNtQueryEaFileWithSpecifyingEaIndex() {
 	pNtQueryEaFile NtQueryEaFile = (pNtQueryEaFile)GetProcAddress(GetModuleHandle(L"ntdll.dll"), "NtQueryEaFile");
 
@@ -289,6 +291,8 @@ int main()
 {
 	std::cout << "Hello World!\n";
 
+	// **** Write EA ****
+
 	// write single EA entry.
 	//return test_writeSingleEaEntry();
 
@@ -299,10 +303,16 @@ int main()
 	NTSTATUS writeEaStatus = test_writeMultipleEaEntryWithNtCreateFile();
 	//return status;
 
-	// read EA entries
-	NTSTATUS readEaStatus = test_readEaEntryWithNtQueryEaFile();
-	//NTSTATUS readEaStatus = test_readEaEntryWithNtQueryEaFileWithSpecifyingEaName();
-	return readEaStatus;
+	// **** Read EA ****
 
-	// 
+	// Read all EA entries
+	//NTSTATUS readEaStatus = test_readEaEntryWithNtQueryEaFile();
+
+	// Read all EA entries specified by EaName
+	NTSTATUS readEaStatus = test_readEaEntryWithNtQueryEaFileWithSpecifyingEaName();
+	
+	// Read EA entry specified by EaIndex
+	//NTSTATUS readEaStatus = test_readEaEntryWithNtQueryEaFileWithSpecifyingEaIndex();
+
+	return readEaStatus;
 }

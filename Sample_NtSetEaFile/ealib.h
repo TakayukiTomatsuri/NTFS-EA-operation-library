@@ -203,6 +203,10 @@ EASTATUS validateEaBuffer(
 	ULONG EaLength
 );
 
-
+// For validation before querying.
+EASTATUS validateEaSearchTargetEntryListBuffer(
+	IN PVOID EaSeachTargetEntryListBuffer,         
+	IN ULONG EaSeachTargetEntryListBufferLength
+);
 
 
