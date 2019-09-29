@@ -181,3 +181,28 @@ PVOID makeEaSearchTargetEntryListBuffer(
 int showAllEaSearchTargetEntriesInBuffer(
 	PVOID EaSearchTargetListBuffer
 );
+
+// **** Other utility functions ****
+
+#define EA_VALIDATION_SUCCESS              0
+#define BAD_EA_NEXTENTRYOFFSET             1
+#define BAD_EA_BUFFER_LENGTH               2
+#define BAD_EA_NAME_LENGTH                 3
+#define EA_VALIDATION_SOMTHING_WRONG       4
+//#define CREATE_ALWAYS                    2
+//#define OPEN_EXISTING                    3
+//#define OPEN_ALWAYS                      4
+//#define TRUNCATE_EXISTING                5
+
+typedef LONG EASTATUS;
+
+// For validation before writing. 
+// EA buffer which is read has been validated by NtQueryEaBuffer (maybe). So it isn't need validation.
+EASTATUS validateEaBuffer(
+	PVOID EaBuffer,
+	ULONG EaLength
+);
+
+
+
+

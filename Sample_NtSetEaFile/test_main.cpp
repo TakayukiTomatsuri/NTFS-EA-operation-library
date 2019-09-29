@@ -160,6 +160,8 @@ NTSTATUS test_writeMultipleEaEntryWithNtCreateFile() {
 	PVOID allEaBuffer = appendEaEntryAtTopOfEaBuffer(eaBuffer_1, eaBuffer_2, calcEaEntryLength(eaBuffer_2->EaNameLength, eaBuffer_2->EaValueLength), &allEaLength);
 
 	showAllEaEntriesInEaBuffer(allEaBuffer);
+	//Validate EaBuffer
+	EASTATUS resultOfValidateEaBuffer = validateEaBuffer(allEaBuffer, allEaLength);
 
 	// Write EA with NtCreateFile
 	IO_STATUS_BLOCK ioStatusBlock = { 0 };
@@ -270,6 +272,7 @@ NTSTATUS test_readEaEntryWithNtQueryEaFileWithSpecifyingEaIndex() {
 	IO_STATUS_BLOCK ioStatusBlock = { 0 };
 	ULONG desiredEaIndex = 2;   // It's one-based index. NOT ZERO-BASED!!!
 	NTSTATUS status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, FALSE, NULL, NULL, &desiredEaIndex, FALSE);
+	
 	showAllEaEntriesInEaBuffer(eaBuffer);
 
 	//NTSTATUS status = NtQueryEaFile(hVictimFile, &ioStatusBlock, eaBuffer, eaLength, TRUE, NULL, NULL, NULL, FALSE);

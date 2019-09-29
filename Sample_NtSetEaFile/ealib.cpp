@@ -293,3 +293,46 @@ int showAllEaSearchTargetEntriesInBuffer(
 
 	return 0;
 }
+
+
+EASTATUS validateEaBuffer(
+	PVOID EaBuffer,
+	ULONG EaLength
+) {
+	FILE_FULL_EA_INFORMATION* currentEaEntry = (FILE_FULL_EA_INFORMATION*)EaBuffer;
+	ULONG residualEaLength = EaLength;
+	ULONG totalOffset = 0;
+	ULONG eaEntryIndex = 0;
+	while (true) {
+		ULONG currentEaEntryLength = calcEaEntryLength(currentEaEntry->EaNameLength, currentEaEntry->EaValueLength);
+
+		// Check EaName Length.
+		// (Since the total length of the EA entry is inspected, only EaNameLength or EaValueLength needs to be confirmed.)
+		if (currentEaEntry->EaNameLength != strlen(currentEaEntry->EaName)) {
+			return BAD_EA_NAME_LENGTH;
+		}
+
+		
+		// The last entry has 0 in NextEntryOffset.
+		if (currentEaEntry->NextEntryOffset == 0) {
+			if (residualEaLength == currentEaEntryLength) return EA_VALIDATION_SUCCESS;
+			// EaLength is invalid when EaLength don't match sum of the all EA entries length.
+			else return BAD_EA_BUFFER_LENGTH;
+		}
+		else {
+			// Check whether EaEntry size match EaEntry->NextEntryOffset.
+			if (currentEaEntry->NextEntryOffset != currentEaEntryLength) {
+				return BAD_EA_NEXTENTRYOFFSET;
+			}
+		}
+
+		// Update cursor
+		residualEaLength = residualEaLength - currentEaEntryLength;
+
+		totalOffset = totalOffset + currentEaEntry->NextEntryOffset;
+		eaEntryIndex = eaEntryIndex + 1;
+		currentEaEntry = (FILE_FULL_EA_INFORMATION*)((char*)currentEaEntry + currentEaEntry->NextEntryOffset);
+	}
+
+	return EA_VALIDATION_SOMTHING_WRONG;
+}
