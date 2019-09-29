@@ -2,7 +2,7 @@
 
 This is a library for operating NTFS EA using WinAPI.
 
-EA operations are possible only with native API to the best of our knowledge, and there is little information on the internet, so we created it as a model code and a library that make manipulating EA easily.
+EA operations are possible only with native API to the best of our knowledge, and there is little information on the internet, so we created it as a model code and a library that make manipulating EA easy.
 
 ## What is NTFS EA (Extended Attribute)
 NTFS EA (Extended Attribute) is a place where you can save a little chunk of data separately from the main file itself.
